@@ -37,16 +37,24 @@ class User extends Model implements AuthenticatableContract,
      */
     protected $hidden = ['password', 'remember_token'];
     
+    //ある一人のuserに関係する多数のitemを取るよ
     public function items()
     {
         return $this->belongsToMany(Item::class)->withPivot('type')->withTimestamps();
     }
-
+    
+    //一人のuserに関係する多数のitemの中で、”type”パラメータが”want”のものを取るよ
     public function want_items()
     {
         return $this->items()->where('type', 'want');
     }
-
+    
+    //一人のuserに関係する多数のitemの中で、”type”パラメータが”have”のものを取るよ
+    public function have_items()
+    {
+        return $this->items()->where('type', 'have');
+    }
+    //あるitemIdのitemをwantするよ
     public function want($itemId)
     {
         // 既に Want しているかの確認
@@ -61,7 +69,22 @@ class User extends Model implements AuthenticatableContract,
             return true;
         }
     }
+    //あるitemIdのitemをhaveするよ
+    public function have($itemId)
+    {
+        // 既に have しているかの確認
+        $exist = $this->is_having($itemId);
 
+        if ($exist) {
+            // 既に have していれば何もしない
+            return false;
+        } else {
+            // 未 have であれば have する
+            $this->items()->attach($itemId, ['type' => 'have']);
+            return true;
+        }
+    }
+    //あるitemIdのitemのwantを外すよ
     public function dont_want($itemId)
     {
         // 既に Want しているかの確認
@@ -75,7 +98,21 @@ class User extends Model implements AuthenticatableContract,
             return false;
         }
     }
+    //あるitemIdのitemのhaveを外すよ
+    public function dont_have($itemId)
+    {
+        // 既に have しているかの確認
+        $exist = $this->is_having($itemId);
 
+        if ($exist) {
+            // 既に have していれば have を外す
+            \DB::delete("DELETE FROM item_user WHERE user_id = ? AND item_id = ? AND type = 'have'", [\Auth::user()->id, $itemId]);
+        } else {
+            // 未 have であれば何もしない
+            return false;
+        }
+    }
+    //あるitemIdかCodeのitemを既にwantしているか
     public function is_wanting($itemIdOrCode)
     {
         if (is_numeric($itemIdOrCode)) {
@@ -83,6 +120,17 @@ class User extends Model implements AuthenticatableContract,
             return $item_id_exists;
         } else {
             $item_code_exists = $this->want_items()->where('code', $itemIdOrCode)->exists();
+            return $item_code_exists;
+        }
+    }
+    //あるitemIdかCodeのitemを既にhaveしているか
+    public function is_having($itemIdOrCode)
+    {
+        if (is_numeric($itemIdOrCode)) {
+            $item_id_exists = $this->have_items()->where('item_id', $itemIdOrCode)->exists();
+            return $item_id_exists;
+        } else {
+            $item_code_exists = $this->have_items()->where('code', $itemIdOrCode)->exists();
             return $item_code_exists;
         }
     }
